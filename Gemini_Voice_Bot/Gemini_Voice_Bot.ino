@@ -81,7 +81,8 @@ const bool  USE_HTTPS     = true;
 int16_t* audio_buffer = nullptr;
 size_t   audio_samples = 0;
 
-Audio audio;
+// Speaker on I2S_NUM_1 to avoid conflict with mic on I2S_NUM_0
+Audio audio(I2S_NUM_1);
 
 // New I2S driver handle for the mic (RX channel on I2S_NUM_0)
 i2s_chan_handle_t mic_handle = nullptr;
@@ -368,6 +369,10 @@ void loop() {
 
     case THINKING: {
       Serial.println("[THINK] Sending to server… (first call after sleep may take ~30s)");
+      // Pulse LED while waiting so the user knows it's not frozen
+      digitalWrite(LED_PIN, LOW);
+      delay(150);
+      digitalWrite(LED_PIN, HIGH);
       if (post_audio_to_server()) {
         String url = base_url() + "/reply.mp3";
         audio.connecttohost(url.c_str());
@@ -380,17 +385,32 @@ void loop() {
     }
 
     case SPEAKING: {
+      static bool ever_running = false;
+      static unsigned long speak_start_ms = 0;
+      if (speak_start_ms == 0) speak_start_ms = millis();
+
       audio.loop();
+
       if (button_just_pressed()) {
         audio.stopSong();
         Serial.println("[SPEAK] Button pressed -> AGENT OFF");
         state = OFF;
         digitalWrite(LED_PIN, LOW);
+        speak_start_ms = 0;
+        ever_running = false;
         break;
       }
-      if (!audio.isRunning()) {
+
+      if (audio.isRunning()) ever_running = true;
+
+      // Only treat playback as "done" once the stream has actually started,
+      // OR after a 5s safety timeout (covers stream-never-starts errors).
+      bool grace_elapsed = (millis() - speak_start_ms > 5000);
+      if ((ever_running || grace_elapsed) && !audio.isRunning()) {
         Serial.println("[SPEAK] Done.");
         state = LISTENING;
+        speak_start_ms = 0;
+        ever_running = false;
       }
       break;
     }
