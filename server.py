@@ -39,7 +39,7 @@ from gtts import gTTS
 # ============================================================
 PORT             = int(os.environ.get("PORT", 5005))   # Render injects PORT env
 SAMPLE_RATE      = 16000
-GEMINI_MODEL     = "gemini-1.5-flash"
+GEMINI_MODEL     = "gemini-2.0-flash"
 TTS_LANG         = "en"
 TTS_TLD          = "com"
 SYSTEM_PROMPT    = (
